@@ -1,13 +1,10 @@
-using Microsoft.AspNet.Authorization;
-using Microsoft.AspNet.Builder;
-using Microsoft.AspNet.Diagnostics.Entity;
-using Microsoft.AspNet.Identity.EntityFramework;
-using Microsoft.Data.Entity;
-using Microsoft.Dnx.Runtime;
-using Microsoft.Framework.Caching.Memory;
-using Microsoft.Framework.Configuration;
-using Microsoft.Framework.DependencyInjection;
-using Microsoft.Framework.Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.PlatformAbstractions;
 using MusicStore.Components;
 using MusicStore.Models;
 
@@ -15,18 +12,18 @@ namespace MusicStore
 {
     /// <summary>
     /// To make runtime to load an environment based startup class, specify the environment by the following ways:
-    /// 1. Drop a Microsoft.AspNet.Hosting.ini file in the wwwroot folder
-    /// 2. Add a setting in the ini file named 'ASPNET_ENV' with value of the format 'Startup[EnvironmentName]'.
+    /// 1. Drop a Microsoft.AspNetCore.Hosting.ini file in the wwwroot folder
+    /// 2. Add a setting in the ini file named 'ASPNETCORE_ENVIRONMENT' with value of the format 'Startup[EnvironmentName]'.
     ///    For example: To load a Startup class named 'StartupOpenIdConnect' the value of the env should be
-    ///    'OpenIdConnect' (eg. ASPNET_ENV=OpenIdConnect). Runtime adds a 'Startup' prefix to this
+    ///    'OpenIdConnect' (eg. ASPNETCORE_ENVIRONMENT=OpenIdConnect). Runtime adds a 'Startup' prefix to this
     ///    and loads 'StartupOpenIdConnect'.
     ///
     /// If no environment name is specified the default startup class loaded is 'Startup'.
     /// Alternative ways to specify environment are:
-    /// 1. Set the environment variable named SET ASPNET_ENV=OpenIdConnect
+    /// 1. Set the environment variable named SET ASPNETCORE_ENVIRONMENT=OpenIdConnect
     /// 2. For selfhost based servers pass in a command line variable named --env with this value. Eg:
     /// "commands": {
-    ///    "web": "Microsoft.AspNet.Hosting --server Microsoft.AspNet.Server.WebListener
+    ///    "web": "Microsoft.AspNetCore.Hosting --server Microsoft.AspNetCore.Server.WebListener
     /// --server.urls http://localhost:5002 --ASPNET_ENV OpenIdConnect",
     ///  },
     /// </summary>
@@ -60,16 +57,12 @@ namespace MusicStore
             // Add EF services to the services container
             if (useInMemoryStore)
             {
-                services.AddEntityFramework()
-                        .AddInMemoryDatabase()
-                        .AddDbContext<MusicStoreContext>(options =>
+                services.AddDbContext<MusicStoreContext>(options =>
                             options.UseInMemoryDatabase());
             }
             else
             {
-                services.AddEntityFramework()
-                        .AddSqlServer()
-                        .AddDbContext<MusicStoreContext>(options =>
+                services.AddDbContext<MusicStoreContext>(options =>
                             options.UseSqlServer(Configuration["Data:DefaultConnection:ConnectionString"]));
             }
 
@@ -89,21 +82,24 @@ namespace MusicStore
             // Add MVC services to the services container
             services.AddMvc();
 
-            //Add InMemoryCache
-            services.AddSingleton<IMemoryCache, MemoryCache>();
+            // Add memory cache services
+            services.AddMemoryCache();
+            services.AddDistributedMemoryCache();
 
             // Add session related services.
-            services.AddCaching();
             services.AddSession();
 
             // Add the system clock service
             services.AddSingleton<ISystemClock, SystemClock>();
 
             // Configure Auth
-            services.Configure<AuthorizationOptions>(options =>
+            services.AddAuthorization(options =>
             {
                 options.AddPolicy(
-                    "ManageStore", new AuthorizationPolicyBuilder().RequireClaim("ManageStore", "Allowed").Build());
+                    "ManageStore",
+                    authBuilder => {
+                        authBuilder.RequireClaim("ManageStore", "Allowed");
+                    });
             });
         }
 
@@ -117,7 +113,7 @@ namespace MusicStore
             // During development use the ErrorPage middleware to display error information in the browser
             app.UseDeveloperExceptionPage();
 
-            app.UseDatabaseErrorPage(DatabaseErrorPageOptions.ShowAll);
+            app.UseDatabaseErrorPage();
 
             // Add the runtime information page that can be used by developers
             // to see what packages are used by the application
@@ -134,10 +130,10 @@ namespace MusicStore
             app.UseIdentity();
 
             // Create an Azure Active directory application and copy paste the following
-            app.UseOpenIdConnectAuthentication(options =>
+            app.UseOpenIdConnectAuthentication(new OpenIdConnectOptions
             {
-                options.Authority = "https://login.windows.net/[tenantName].onmicrosoft.com";
-                options.ClientId = "[ClientId]";
+                Authority = "https://login.windows.net/[tenantName].onmicrosoft.com",
+                ClientId = "[ClientId]"
             });
 
             // Add MVC to the request pipeline

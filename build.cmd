@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 @echo off
 cd %~dp0
 
@@ -39,3 +40,7 @@ CALL packages\KoreBuild\build\dnvm install default -runtime CoreCLR -arch x64
 :run
 CALL packages\KoreBuild\build\dnvm use default -runtime CLR -arch x86
 packages\Sake\tools\Sake.exe -I packages\KoreBuild\build -f makefile.shade %*
+=======
+@ECHO OFF
+PowerShell -NoProfile -NoLogo -ExecutionPolicy unrestricted -Command "[System.Threading.Thread]::CurrentThread.CurrentCulture = ''; [System.Threading.Thread]::CurrentThread.CurrentUICulture = '';& '%~dp0build.ps1' %*; exit $LASTEXITCODE"
+>>>>>>> aspnet/dev

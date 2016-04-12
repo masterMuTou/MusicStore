@@ -1,17 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Http;
-using Microsoft.AspNet.Http.Features;
-using Microsoft.AspNet.Http.Features.Authentication;
-using Microsoft.AspNet.Http.Features.Authentication.Internal;
-using Microsoft.AspNet.Http.Internal;
-using Microsoft.AspNet.Identity;
-using Microsoft.AspNet.Identity.EntityFramework;
-using Microsoft.AspNet.Mvc;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features.Authentication;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MusicStore.Models;
 using Xunit;
 
@@ -23,20 +20,23 @@ namespace MusicStore.Controllers
 
         public ManageControllerTest()
         {
+            var efServiceProvider = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+
             var services = new ServiceCollection();
-            services.AddEntityFramework()
-                    .AddInMemoryDatabase()
-                    .AddDbContext<MusicStoreContext>(options => options.UseInMemoryDatabase());
+            services.AddOptions();
+            services
+                .AddDbContext<MusicStoreContext>(b => b.UseInMemoryDatabase().UseInternalServiceProvider(efServiceProvider));
 
             services.AddIdentity<ApplicationUser, IdentityRole>()
                     .AddEntityFrameworkStores<MusicStoreContext>();
 
             services.AddLogging();
+            services.AddOptions();
 
             // IHttpContextAccessor is required for SignInManager, and UserManager
             var context = new DefaultHttpContext();
             context.Features.Set<IHttpAuthenticationFeature>(new HttpAuthenticationFeature() { Handler = new TestAuthHandler() });
-            services.AddInstance<IHttpContextAccessor>(
+            services.AddSingleton<IHttpContextAccessor>(
                 new HttpContextAccessor()
                     {
                         HttpContext = context,
@@ -64,12 +64,8 @@ namespace MusicStore.Controllers
             var httpContext = _serviceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext;
             httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims));
 
-            var controller = new ManageController()
-            {
-                UserManager = userManager,
-                SignInManager = signInManager,
-            };
-            controller.ActionContext.HttpContext = httpContext;
+            var controller = new ManageController(userManager, signInManager);
+            controller.ControllerContext.HttpContext = httpContext;
 
             // Act
             var result = await controller.Index();

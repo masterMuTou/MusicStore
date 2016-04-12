@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Mvc;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.Caching.Memory;
-using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using MusicStore.Models;
 using Xunit;
 
@@ -17,11 +17,11 @@ namespace MusicStore.Controllers
 
         public StoreControllerTest()
         {
+            var efServiceProvider = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+
             var services = new ServiceCollection();
 
-            services.AddEntityFramework()
-                      .AddInMemoryDatabase()
-                      .AddDbContext<MusicStoreContext>(options => options.UseInMemoryDatabase());
+            services.AddDbContext<MusicStoreContext>(b => b.UseInMemoryDatabase().UseInternalServiceProvider(efServiceProvider));
 
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -33,10 +33,7 @@ namespace MusicStore.Controllers
             var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
             CreateTestGenres(numberOfGenres: 10, numberOfAlbums: 1, dbContext: dbContext);
 
-            var controller = new StoreController()
-            {
-                DbContext = dbContext,
-            };
+            var controller = new StoreController(dbContext);
 
             // Act
             var result = await controller.Index();
@@ -54,16 +51,13 @@ namespace MusicStore.Controllers
         public async Task Browse_ReturnsHttpNotFoundWhenNoGenreData()
         {
             // Arrange
-            var controller = new StoreController()
-            {
-                DbContext = _serviceProvider.GetRequiredService<MusicStoreContext>(),
-            };
+            var controller = new StoreController(_serviceProvider.GetRequiredService<MusicStoreContext>());
 
             // Act
             var result = await controller.Browse(string.Empty);
 
             // Assert
-            Assert.IsType<HttpNotFoundResult>(result);
+            Assert.IsType<NotFoundResult>(result);
         }
 
         [Fact]
@@ -75,10 +69,7 @@ namespace MusicStore.Controllers
             var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
             CreateTestGenres(numberOfGenres: 3, numberOfAlbums: 3, dbContext: dbContext);
 
-            var controller = new StoreController()
-            {
-                DbContext = dbContext,
-            };
+            var controller = new StoreController(dbContext);
 
             // Act
             var result = await controller.Browse(genreName);
@@ -99,17 +90,13 @@ namespace MusicStore.Controllers
         {
             // Arrange
             var albumId = int.MinValue;
-            var controller = new StoreController()
-            {
-                DbContext = _serviceProvider.GetRequiredService<MusicStoreContext>(),
-                Cache = _serviceProvider.GetRequiredService<IMemoryCache>(),
-            };
+            var controller = new StoreController(_serviceProvider.GetRequiredService<MusicStoreContext>());
 
             // Act
-            var result = await controller.Details(albumId);
+            var result = await controller.Details(_serviceProvider.GetRequiredService<IMemoryCache>(), albumId);
 
             // Assert
-            Assert.IsType<HttpNotFoundResult>(result);
+            Assert.IsType<NotFoundResult>(result);
         }
 
         [Fact]
@@ -123,14 +110,10 @@ namespace MusicStore.Controllers
 
             var cache = _serviceProvider.GetRequiredService<IMemoryCache>();
 
-            var controller = new StoreController()
-            {
-                DbContext = dbContext,
-                Cache = cache,
-            };
+            var controller = new StoreController(dbContext);
 
             // Act
-            var result = await controller.Details(albumId);
+            var result = await controller.Details(cache, albumId);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);

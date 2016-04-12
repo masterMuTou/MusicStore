@@ -1,14 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Identity;
-using Microsoft.Data.Entity;
-using Microsoft.Data.Entity.Storage;
-using Microsoft.Framework.Configuration;
-using Microsoft.Framework.DependencyInjection;
-using Microsoft.Dnx.Runtime;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.PlatformAbstractions;
 
 namespace MusicStore.Models
 {
@@ -16,7 +15,7 @@ namespace MusicStore.Models
     {
         const string imgUrl = "~/Images/placeholder.png";
         const string defaultAdminUserName = "DefaultAdminUserName";
-        const string defaultAdminPassword = "defaultAdminPassword";
+        const string defaultAdminPassword = "DefaultAdminPassword";
 
         public static async Task InitializeMusicStoreDatabaseAsync(IServiceProvider serviceProvider, bool createUsers = true)
         {
@@ -914,12 +913,9 @@ namespace MusicStore.Models
                         new Artist { Name = "אריק אינשטיין"}
                     };
 
-                    // TODO [EF] Swap to store generated keys when available
-                    int artistId = 1;
                     artists = new Dictionary<string, Artist>();
                     foreach (Artist artist in artistsList)
                     {
-                        artist.ArtistId = artistId++;
                         artists.Add(artist.Name, artist);
                     }
                 }
@@ -955,15 +951,9 @@ namespace MusicStore.Models
                     };
 
                     genres = new Dictionary<string, Genre>();
-                    // TODO [EF] Swap to store generated keys when available
-                    int genreId = 1;
+
                     foreach (Genre genre in genresList)
                     {
-                        genre.GenreId = genreId++;
-
-                        // TODO [EF] Remove when null values are supported by update pipeline
-                        genre.Description = genre.Name + " is great music (if you like it).";
-
                         genres.Add(genre.Name, genre);
                     }
                 }

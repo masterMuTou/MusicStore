@@ -1,15 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Http;
-using Microsoft.AspNet.Http.Internal;
-using Microsoft.AspNet.Mvc;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.DependencyInjection;
-using Microsoft.Framework.Primitives;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
 using MusicStore.Models;
 using Xunit;
 
@@ -21,11 +20,11 @@ namespace MusicStore.Controllers
 
         public CheckoutControllerTest()
         {
+            var efServiceProvider = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+
             var services = new ServiceCollection();
 
-            services.AddEntityFramework()
-                      .AddInMemoryDatabase()
-                      .AddDbContext<MusicStoreContext>(options => options.UseInMemoryDatabase());
+            services.AddDbContext<MusicStoreContext>(b => b.UseInMemoryDatabase().UseInternalServiceProvider(efServiceProvider));
 
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -82,14 +81,11 @@ namespace MusicStore.Controllers
             dbContext.AddRange(cartItems);
             dbContext.SaveChanges();
 
-            var controller = new CheckoutController()
-            {
-                DbContext = dbContext,
-            };
-            controller.ActionContext.HttpContext = httpContext;
+            var controller = new CheckoutController();
+            controller.ControllerContext.HttpContext = httpContext;
 
             // Act
-            var result = await controller.AddressAndPayment(order, CancellationToken.None);
+            var result = await controller.AddressAndPayment(dbContext, order, CancellationToken.None);
 
             // Assert
             var redirectResult = Assert.IsType<RedirectToActionResult>(result);
@@ -105,19 +101,20 @@ namespace MusicStore.Controllers
         {
             // Arrange
             var context = new DefaultHttpContext();
+            var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
 
             // AddressAndPayment action reads the Promo code from FormCollection.
             context.Request.Form =
                 new FormCollection(new Dictionary<string, StringValues>());
 
             var controller = new CheckoutController();
-            controller.ActionContext.HttpContext = context;
+            controller.ControllerContext.HttpContext = context;
 
             // Do not need actual data for Order; the Order object will be checked for the reference equality.
             var order = new Order();
 
             // Act
-            var result = await controller.AddressAndPayment(order, CancellationToken.None);
+            var result = await controller.AddressAndPayment(dbContext, order, CancellationToken.None);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
@@ -134,14 +131,15 @@ namespace MusicStore.Controllers
             var context = new DefaultHttpContext();
             context.Request.Form =
                 new FormCollection(new Dictionary<string, StringValues>());
+            var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
 
             var controller = new CheckoutController();
-            controller.ActionContext.HttpContext = context;
+            controller.ControllerContext.HttpContext = context;
 
             var order = new Order();
 
             // Act
-            var result = await controller.AddressAndPayment(order, new CancellationToken(true));
+            var result = await controller.AddressAndPayment(dbContext, order, new CancellationToken(true));
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
@@ -157,11 +155,12 @@ namespace MusicStore.Controllers
             // Arrange
             var controller = new CheckoutController();
             controller.ModelState.AddModelError("a", "ModelErrorA");
+            var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
 
             var order = new Order();
 
             // Act
-            var result = await controller.AddressAndPayment(order, CancellationToken.None);
+            var result = await controller.AddressAndPayment(dbContext, order, CancellationToken.None);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
@@ -193,14 +192,11 @@ namespace MusicStore.Controllers
             });
             dbContext.SaveChanges();
 
-            var controller = new CheckoutController()
-            {
-                DbContext = dbContext,
-            };
-            controller.ActionContext.HttpContext = httpContext;
+            var controller = new CheckoutController();
+            controller.ControllerContext.HttpContext = httpContext;
 
             // Act
-            var result = await controller.Complete(orderId);
+            var result = await controller.Complete(dbContext, orderId);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
@@ -218,14 +214,11 @@ namespace MusicStore.Controllers
             var dbContext =
                 _serviceProvider.GetRequiredService<MusicStoreContext>();
 
-            var controller = new CheckoutController()
-            {
-                DbContext = dbContext,
-            };
-            controller.ActionContext.HttpContext = new DefaultHttpContext();
+            var controller = new CheckoutController();
+            controller.ControllerContext.HttpContext = new DefaultHttpContext();
 
             // Act
-            var result = await controller.Complete(invalidOrderId);
+            var result = await controller.Complete(dbContext, invalidOrderId);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);

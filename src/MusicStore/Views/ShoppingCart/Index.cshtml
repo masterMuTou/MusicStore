@@ -1,15 +1,14 @@
-﻿@model MusicStore.ViewModels.ShoppingCartViewModel
-@inject Microsoft.AspNet.Antiforgery.IAntiforgery Xsrf
+@model MusicStore.ViewModels.ShoppingCartViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
 @{
     ViewBag.Title = "Shopping Cart";
 }
 
 @functions
 {
-    public string GetAntiXsrfToken()
+    public string GetAntiXsrfRequestToken()
     {
-        var tokens = Xsrf.GetTokens(Context);
-        return tokens.CookieToken + ":" + tokens.FormToken;
+        return Xsrf.GetAndStoreTokens(Context).RequestToken;
     }
 }
 
@@ -26,10 +25,12 @@
                     // Perform the ajax post
                     $.ajax(PostToUrl, {
                         type: "post",
-                        data: { "id": recordToDelete },
+                        data: {
+                            "id": recordToDelete
+                        },
                         dataType: "json",
                         headers: {
-                            "RequestVerificationToken": '@GetAntiXsrfToken()'
+                            "RequestVerificationToken": '@GetAntiXsrfRequestToken()'
                         }
                     }).done(function (data) {
                         // Successful requests get here
@@ -42,7 +43,7 @@
 
                         $('#cart-total').text(data.CartTotal);
                         $('#update-message').text(data.Message);
-                        $('#cart-status').text('Cart (' + data.CartCount + ')');
+                        $('#cart-status').text(data.CartCount);
                     });
                 }
             });
@@ -59,7 +60,7 @@
 </p>
 <div id="update-message">
 </div>
-<table id="cart-summary">
+<table id="cart-summary" class="table table-bordered table-responsive table-hover table-striped">
     <tr>
         <th>
             Album Name

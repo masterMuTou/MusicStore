@@ -1,24 +1,33 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Server.Testing;
-using Microsoft.AspNet.Testing.xunit;
-using Microsoft.Framework.Logging;
+using E2ETests.Common;
+using Microsoft.AspNetCore.Server.Testing;
+using Microsoft.AspNetCore.Testing;
+using Microsoft.AspNetCore.Testing.xunit;
+using Microsoft.Extensions.Logging;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace E2ETests
 {
     // Uses ports ranging 5040 - 5049.
-    public class OpenIdConnectTests
+    public class OpenIdConnectTests : IDisposable
     {
-        [ConditionalTheory(Skip = "Temporarily skipped the test to fix potential product issue"), Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
-        //[InlineData(ServerType.IISExpress, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5040/")]
-        // https://github.com/aspnet/Security/issues/223
-        // [InlineData(
-        //          ServerType.IISExpress, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5041/")]
-        public async Task OpenIdConnect_OnX86(
+        private readonly XunitLogger _logger;
+
+        public OpenIdConnectTests(ITestOutputHelper output)
+        {
+            _logger = new XunitLogger(output, LogLevel.Information);
+        }
+
+        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
+        [OSSkipCondition(OperatingSystems.Linux)]
+        [OSSkipCondition(OperatingSystems.MacOSX)]
+        //[InlineData(ServerType.Kestrel, RuntimeFlavor.Clr, RuntimeArchitecture.x64, "http://localhost:5040/")]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5041/")]
+        public async Task OpenIdConnect_OnWindowsOS(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
@@ -27,46 +36,49 @@ namespace E2ETests
             await OpenIdConnectTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
         }
 
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.CLR | RuntimeFrameworks.CoreCLR)]
-        [InlineData(ServerType.Kestrel, RuntimeFlavor.Mono, RuntimeArchitecture.x86, "http://localhost:5042/")]
-        public async Task OpenIdConnect_OnMono(ServerType serverType, RuntimeFlavor runtimeFlavor, RuntimeArchitecture architecture, string applicationBaseUrl)
+        [ConditionalTheory(Skip = "https://github.com/dotnet/corefx/issues/7440"), Trait("E2Etests", "E2Etests")]
+        [OSSkipCondition(OperatingSystems.Windows)]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5042/")]
+        public async Task OpenIdConnect_OnNonWindows(ServerType serverType, RuntimeFlavor runtimeFlavor, RuntimeArchitecture architecture, string applicationBaseUrl)
         {
             await OpenIdConnectTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
         }
 
+        // TODO: temporarily disabling x86 tests as dotnet xunit test runner currently does not support 32-bit
+
+        //[ConditionalTheory(Skip = "https://github.com/aspnet/MusicStore/issues/565"), Trait("E2Etests", "E2Etests")]
+        //[OSSkipCondition(OperatingSystems.Windows)]
+        //[InlineData(ServerType.Kestrel, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5043/")]
+        //public async Task OpenIdConnect_OnMono(ServerType serverType, RuntimeFlavor runtimeFlavor, RuntimeArchitecture architecture, string applicationBaseUrl)
+        //{
+        //    await OpenIdConnectTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
+        //}
+
         private async Task OpenIdConnectTestSuite(ServerType serverType, RuntimeFlavor runtimeFlavor, RuntimeArchitecture architecture, string applicationBaseUrl)
         {
-            var logger = new LoggerFactory()
-                            .AddConsole(LogLevel.Warning)
-                            .CreateLogger(string.Format("OpenId:{0}:{1}:{2}", serverType, runtimeFlavor, architecture));
-
-            using (logger.BeginScope("OpenIdConnectTestSuite"))
+            using (_logger.BeginScope("OpenIdConnectTestSuite"))
             {
-                var musicStoreDbName = Guid.NewGuid().ToString().Replace("-", string.Empty);
-                var connectionString = string.Format(DbUtils.CONNECTION_STRING_FORMAT, musicStoreDbName);
+                var musicStoreDbName = DbUtils.GetUniqueName();
 
                 var deploymentParameters = new DeploymentParameters(Helpers.GetApplicationPath(), serverType, runtimeFlavor, architecture)
                 {
+                    PublishApplicationBeforeDeployment = true,
+                    PublishTargetFramework = runtimeFlavor == RuntimeFlavor.Clr ? "net451" : "netstandardapp1.5",
                     ApplicationBaseUriHint = applicationBaseUrl,
                     EnvironmentName = "OpenIdConnectTesting",
                     UserAdditionalCleanup = parameters =>
                     {
-                        if (!Helpers.RunningOnMono)
-                        {
-                            // Mono uses InMemoryStore
-                            DbUtils.DropDatabase(musicStoreDbName, logger);
-                        }
+                        DbUtils.DropDatabase(musicStoreDbName, _logger);
                     }
                 };
 
                 // Override the connection strings using environment based configuration
                 deploymentParameters.EnvironmentVariables
                     .Add(new KeyValuePair<string, string>(
-                        "SQLAZURECONNSTR_DefaultConnection",
-                        string.Format(DbUtils.CONNECTION_STRING_FORMAT, musicStoreDbName)));
+                        MusicStore.StoreConfig.ConnectionStringKey,
+                        DbUtils.CreateConnectionString(musicStoreDbName)));
 
-                using (var deployer = ApplicationDeployerFactory.Create(deploymentParameters, logger))
+                using (var deployer = ApplicationDeployerFactory.Create(deploymentParameters, _logger))
                 {
                     var deploymentResult = deployer.Deploy();
                     var httpClientHandler = new HttpClientHandler();
@@ -76,20 +88,25 @@ namespace E2ETests
                     var response = await RetryHelper.RetryRequest(async () =>
                     {
                         return await httpClient.GetAsync(string.Empty);
-                    }, logger: logger, cancellationToken: deploymentResult.HostShutdownToken);
+                    }, logger: _logger, cancellationToken: deploymentResult.HostShutdownToken);
 
                     Assert.False(response == null, "Response object is null because the client could not " +
                         "connect to the server after multiple retries");
 
-                    var validator = new Validator(httpClient, httpClientHandler, logger, deploymentResult);
+                    var validator = new Validator(httpClient, httpClientHandler, _logger, deploymentResult);
                     await validator.VerifyHomePage(response);
 
                     // OpenIdConnect login.
                     await validator.LoginWithOpenIdConnect();
 
-                    logger.LogInformation("Variation completed successfully.");
+                    _logger.LogInformation("Variation completed successfully.");
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            _logger.Dispose();
         }
     }
 }

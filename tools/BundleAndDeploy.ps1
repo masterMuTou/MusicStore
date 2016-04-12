@@ -55,7 +55,7 @@ try
     Write-Host "Bundling the application..."
     cd "$workDir"
     dnvm use default -r CoreCLR -arch x64
-    dnu publish --runtime active
+    dnu publish --runtime active --no-source
     if ($lastexitcode -ne 0) {
         Write-Error "Failed to bundle the application"
         exit 1
@@ -75,7 +75,7 @@ try
     $destDir = Join-Path $remoteDir -ChildPath $projectName
     if (Test-Path $destDir) {
       Write-Host "$destDir already exists. Removing it..."
-      rmdir -Recurse "$destDir"
+      cmd /c rmdir /S /Q "$destDir"
     }
 
     Write-Host "Copying bundled application to $destDir ..."

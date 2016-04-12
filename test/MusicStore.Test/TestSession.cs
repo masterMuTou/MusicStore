@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Http.Features;
+using Microsoft.AspNetCore.Http;
 
 namespace MusicStore.Controllers
 {
@@ -11,6 +11,8 @@ namespace MusicStore.Controllers
             = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
 
         public IEnumerable<string> Keys { get { return _store.Keys; } }
+
+        public string Id { get; set; }
 
         public void Clear()
         {

@@ -1,11 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Mvc;
-using Microsoft.AspNet.Mvc.ViewComponents;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNetCore.Mvc.ViewComponents;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MusicStore.Models;
 using Xunit;
 
@@ -17,10 +16,11 @@ namespace MusicStore.Components
 
         public GenreMenuComponentTest()
         {
+            var efServiceProvider = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+
             var services = new ServiceCollection();
-            services.AddEntityFramework()
-                      .AddInMemoryDatabase()
-                      .AddDbContext<MusicStoreContext>(options => options.UseInMemoryDatabase());
+
+            services.AddDbContext<MusicStoreContext>(b => b.UseInMemoryDatabase().UseInternalServiceProvider(efServiceProvider));
 
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -47,7 +47,7 @@ namespace MusicStore.Components
 
         private static void PopulateData(MusicStoreContext context)
         {
-            var genres = Enumerable.Range(1, 10).Select(n => new Genre());
+            var genres = Enumerable.Range(1, 10).Select(n => new Genre { GenreId = n });
 
             context.AddRange(genres);
             context.SaveChanges();

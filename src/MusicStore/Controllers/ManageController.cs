@@ -1,25 +1,27 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Authorization;
-using Microsoft.AspNet.Identity;
-using Microsoft.AspNet.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using MusicStore.Models;
 
 namespace MusicStore.Controllers
 {
-    /// <summary>
-    /// Summary description for ManageController
-    /// </summary>
     [Authorize]
     public class ManageController : Controller
     {
- 
-        [FromServices]
-        public UserManager<ApplicationUser> UserManager { get; set; }
+        public ManageController(
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager)
+        {
+            UserManager = userManager;
+            SignInManager = signInManager;
+        }
 
-        [FromServices]
-        public SignInManager<ApplicationUser> SignInManager { get; set; }
+        public UserManager<ApplicationUser> UserManager { get; }
+
+        public SignInManager<ApplicationUser> SignInManager { get; }
 
         //
         // GET: /Manage/Index
@@ -161,6 +163,8 @@ namespace MusicStore.Controllers
 
         //
         // GET: /Account/RemovePhoneNumber
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> RemovePhoneNumber()
         {
             var user = await GetCurrentUserAsync();
@@ -170,10 +174,10 @@ namespace MusicStore.Controllers
                 if (result.Succeeded)
                 {
                     await SignInManager.SignInAsync(user, isPersistent: false);
-                    return RedirectToAction("Index", new { Message = ManageMessageId.RemovePhoneSuccess });
+                    return RedirectToAction(nameof(Index), new { Message = ManageMessageId.RemovePhoneSuccess });
                 }
             }
-            return RedirectToAction("Index", new { Message = ManageMessageId.Error });
+            return RedirectToAction(nameof(Index), new { Message = ManageMessageId.Error });
         }
 
         //
@@ -298,7 +302,7 @@ namespace MusicStore.Controllers
         {
             // Request a redirect to the external login provider to link a login for the current user
             var redirectUrl = Url.Action("LinkLoginCallback", "Manage");
-            var properties = SignInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl, User.GetUserId());
+            var properties = SignInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl, UserManager.GetUserId(User));
             return new ChallengeResult(provider, properties);
         }
 
@@ -312,7 +316,7 @@ namespace MusicStore.Controllers
                 return View("Error");
             }
 
-            var loginInfo = await SignInManager.GetExternalLoginInfoAsync(User.GetUserId());
+            var loginInfo = await SignInManager.GetExternalLoginInfoAsync(await UserManager.GetUserIdAsync(user));
             if (loginInfo == null)
             {
                 return RedirectToAction("ManageLogins", new { Message = ManageMessageId.Error });
@@ -345,11 +349,11 @@ namespace MusicStore.Controllers
             Error
         }
 
-        private async Task<ApplicationUser> GetCurrentUserAsync()
+        private Task<ApplicationUser> GetCurrentUserAsync()
         {
-            return await UserManager.FindByIdAsync(HttpContext.User.GetUserId());
+            return UserManager.GetUserAsync(HttpContext.User);
         }
-        
+
         #endregion
     }
 }

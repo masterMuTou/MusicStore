@@ -1,109 +1,156 @@
-﻿using System;
+using System;
+using System.IO;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Server.Testing;
-using Microsoft.AspNet.Testing.xunit;
-using Microsoft.Framework.Logging;
+using E2ETests.Common;
+using Microsoft.AspNetCore.Server.Testing;
+using Microsoft.AspNetCore.Testing.xunit;
+using Microsoft.Extensions.Logging;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace E2ETests
 {
     // Uses ports ranging 5001 - 5025.
-    public class SmokeTests_X86_Clr
+    // TODO: temporarily disabling these tests as dotnet xunit runner does not support 32-bit yet.
+    // public
+    class SmokeTests_X86 : IDisposable
     {
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
-        // [InlineData(ServerType.IISExpress, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5001/")]
-        [InlineData(ServerType.WebListener, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5002/")]
+        private readonly XunitLogger _logger;
+
+        public SmokeTests_X86(ITestOutputHelper output)
+        {
+            _logger = new XunitLogger(output, LogLevel.Information);
+        }
+
+        [ConditionalTheory, Trait("E2Etests", "Smoke")]
+        [OSSkipCondition(OperatingSystems.Linux)]
+        [OSSkipCondition(OperatingSystems.MacOSX)]
+        [InlineData(ServerType.WebListener, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5001/")]
+        [InlineData(ServerType.WebListener, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5002/")]
         [InlineData(ServerType.Kestrel, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5003/")]
-        public async Task SmokeTestSuite_OnX86_clr(
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5004/")]
+        [InlineData(ServerType.IISExpress, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5005/")]
+        [InlineData(ServerType.IISExpress, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5006/")]
+        public async Task WindowsOS(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
             string applicationBaseUrl)
         {
-            var smokeTestRunner = new SmokeTests();
+            var smokeTestRunner = new SmokeTests(_logger);
             await smokeTestRunner.SmokeTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
         }
-    }
 
-    public class SmokeTests_X86_Coreclr
-    {
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
-        //[InlineData(ServerType.IISExpress, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5004/")]
-        [InlineData(ServerType.WebListener, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5005/")]
-        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x86, "http://localhost:5006/")]
-        public async Task SmokeTestSuite_OnX86_coreclr(
+        [ConditionalTheory(Skip = "Temporarily disabling test"), Trait("E2Etests", "Smoke")]
+        [OSSkipCondition(OperatingSystems.Windows)]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5007/")]
+        public async Task NonWindowsOS(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
             string applicationBaseUrl)
         {
-            var smokeTestRunner = new SmokeTests();
+            var smokeTestRunner = new SmokeTests(_logger);
             await smokeTestRunner.SmokeTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
+        }
+
+        public void Dispose()
+        {
+            _logger.Dispose();
         }
     }
 
-    public class SmokeTests_X64
+    public class SmokeTests_X64 : IDisposable
     {
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
-        [SkipOn32BitOS]
-        [InlineData(ServerType.WebListener, RuntimeFlavor.Clr, RuntimeArchitecture.x64, "http://localhost:5007/")]
-        //[InlineData(ServerType.IISExpress, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5008/")]
-        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5009/")]
-        public async Task SmokeTestSuite_OnAMD64(
+        private readonly XunitLogger _logger;
+
+        public SmokeTests_X64(ITestOutputHelper output)
+        {
+            _logger = new XunitLogger(output, LogLevel.Information);
+        }
+
+        [ConditionalTheory, Trait("E2Etests", "Smoke")]
+        [OSSkipCondition(OperatingSystems.Linux)]
+        [OSSkipCondition(OperatingSystems.MacOSX)]
+        [InlineData(ServerType.WebListener, RuntimeFlavor.Clr, RuntimeArchitecture.x64, "http://localhost:5008/")]
+        [InlineData(ServerType.WebListener, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5009/")]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.Clr, RuntimeArchitecture.x64, "http://localhost:5010/")]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5011/")]
+        [InlineData(ServerType.IISExpress, RuntimeFlavor.Clr, RuntimeArchitecture.x64, "http://localhost:5012/")]
+        [InlineData(ServerType.IISExpress, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5013/")]
+        public async Task WindowsOS(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
             string applicationBaseUrl)
         {
-            var smokeTestRunner = new SmokeTests();
+            var smokeTestRunner = new SmokeTests(_logger);
             await smokeTestRunner.SmokeTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
         }
-    }
 
-    public class SmokeTests_OnMono
-    {
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.CLR | RuntimeFrameworks.CoreCLR)]
-        [InlineData(ServerType.Kestrel, RuntimeFlavor.Mono, RuntimeArchitecture.x86, "http://localhost:5010/")]
-        public async Task SmokeTestSuite_OnMono(
+        [ConditionalTheory(Skip = "https://github.com/dotnet/corefx/issues/7440"), Trait("E2Etests", "Smoke")]
+        [OSSkipCondition(OperatingSystems.Windows)]
+        [InlineData(ServerType.Kestrel, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5014/")]
+        public async Task NonWindowsOS(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
             string applicationBaseUrl)
         {
-            var smokeTestRunner = new SmokeTests();
+            var smokeTestRunner = new SmokeTests(_logger);
             await smokeTestRunner.SmokeTestSuite(serverType, runtimeFlavor, architecture, applicationBaseUrl);
+        }
+        public void Dispose()
+        {
+            _logger.Dispose();
         }
     }
 
-    public class SmokeTests_OnIIS
+    class SmokeTests_OnIIS : IDisposable
     {
-        [ConditionalTheory, Trait("E2Etests", "E2Etests")]
-        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
-        [OSSkipCondition(OperatingSystems.MacOSX | OperatingSystems.Linux)]
+        private readonly XunitLogger _logger;
+
+        public SmokeTests_OnIIS(ITestOutputHelper output)
+        {
+            _logger = new XunitLogger(output, LogLevel.Information);
+        }
+
+        [ConditionalTheory, Trait("E2Etests", "Smoke")]
+        [OSSkipCondition(OperatingSystems.MacOSX)]
+        [OSSkipCondition(OperatingSystems.Linux)]
         [SkipIfCurrentRuntimeIsCoreClr]
         [SkipIfIISVariationsNotEnabled]
-        [InlineData(ServerType.IIS, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5013/")]
-        [InlineData(ServerType.IIS, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5013/")]
+        //[InlineData(ServerType.IIS, RuntimeFlavor.Clr, RuntimeArchitecture.x86, "http://localhost:5015/")]
+        [InlineData(ServerType.IIS, RuntimeFlavor.CoreClr, RuntimeArchitecture.x64, "http://localhost:5016/")]
         public async Task SmokeTestSuite_On_IIS_X86(
             ServerType serverType,
             RuntimeFlavor runtimeFlavor,
             RuntimeArchitecture architecture,
             string applicationBaseUrl)
         {
-            var smokeTestRunner = new SmokeTests();
+            var smokeTestRunner = new SmokeTests(_logger);
             await smokeTestRunner.SmokeTestSuite(
                 serverType, runtimeFlavor, architecture, applicationBaseUrl, noSource: true);
+        }
+
+        public void Dispose()
+        {
+            _logger.Dispose();
         }
     }
 
     public class SmokeTests
     {
+        private ILogger _logger;
+
+        public SmokeTests(ILogger logger)
+        {
+            _logger = logger;
+        }
+
         public async Task SmokeTestSuite(
             ServerType serverType,
             RuntimeFlavor donetFlavor,
@@ -111,46 +158,41 @@ namespace E2ETests
             string applicationBaseUrl,
             bool noSource = false)
         {
-            var logger = new LoggerFactory()
-                           .AddConsole(LogLevel.Warning)
-                           .CreateLogger($"Smoke:{serverType}:{donetFlavor}:{architecture}");
-
-            using (logger.BeginScope("SmokeTestSuite"))
+            using (_logger.BeginScope("SmokeTestSuite"))
             {
-                var musicStoreDbName = Guid.NewGuid().ToString().Replace("-", string.Empty);
+                var musicStoreDbName = DbUtils.GetUniqueName();
 
                 var deploymentParameters = new DeploymentParameters(
                     Helpers.GetApplicationPath(), serverType, donetFlavor, architecture)
                 {
                     ApplicationBaseUriHint = applicationBaseUrl,
                     EnvironmentName = "SocialTesting",
-                    PublishWithNoSource = noSource,
+                    ServerConfigTemplateContent = (serverType == ServerType.IISExpress) ? File.ReadAllText("Http.config") : null,
+                    SiteName = "MusicStoreTestSite",
+                    PublishApplicationBeforeDeployment = true,
+                    PublishTargetFramework = donetFlavor == RuntimeFlavor.Clr ? "net451" : "netstandardapp1.5",
                     UserAdditionalCleanup = parameters =>
                     {
-                        if (!Helpers.RunningOnMono
-                            && parameters.ServerType != ServerType.IIS)
-                        {
-                            // Mono uses InMemoryStore
-                            DbUtils.DropDatabase(musicStoreDbName, logger);
-                        }
+                        DbUtils.DropDatabase(musicStoreDbName, _logger);
                     }
                 };
 
                 // Override the connection strings using environment based configuration
                 deploymentParameters.EnvironmentVariables
                     .Add(new KeyValuePair<string, string>(
-                        "SQLAZURECONNSTR_DefaultConnection",
-                        string.Format(DbUtils.CONNECTION_STRING_FORMAT, musicStoreDbName)));
+                        MusicStore.StoreConfig.ConnectionStringKey,
+                        DbUtils.CreateConnectionString(musicStoreDbName)));
 
-                using (var deployer = ApplicationDeployerFactory.Create(deploymentParameters, logger))
+                using (var deployer = ApplicationDeployerFactory.Create(deploymentParameters, _logger))
                 {
                     var deploymentResult = deployer.Deploy();
-                    Helpers.SetInMemoryStoreForIIS(deploymentParameters, logger);
+                    Helpers.SetInMemoryStoreForIIS(deploymentParameters, _logger);
 
                     var httpClientHandler = new HttpClientHandler();
                     var httpClient = new HttpClient(httpClientHandler)
                     {
-                        BaseAddress = new Uri(deploymentResult.ApplicationBaseUri)
+                        BaseAddress = new Uri(deploymentResult.ApplicationBaseUri),
+                        Timeout = TimeSpan.FromSeconds(5),
                     };
 
                     // Request to base address and check if various parts of the body are rendered
@@ -158,12 +200,12 @@ namespace E2ETests
                     var response = await RetryHelper.RetryRequest(async () =>
                     {
                         return await httpClient.GetAsync(string.Empty);
-                    }, logger: logger, cancellationToken: deploymentResult.HostShutdownToken);
+                    }, logger: _logger, cancellationToken: deploymentResult.HostShutdownToken);
 
                     Assert.False(response == null, "Response object is null because the client could not " +
                         "connect to the server after multiple retries");
 
-                    var validator = new Validator(httpClient, httpClientHandler, logger, deploymentResult);
+                    var validator = new Validator(httpClient, httpClientHandler, _logger, deploymentResult);
 
                     await validator.VerifyHomePage(response);
 
@@ -250,7 +292,7 @@ namespace E2ETests
                     // MicrosoftAccountLogin
                     await validator.LoginWithMicrosoftAccount();
 
-                    logger.LogInformation("Variation completed successfully.");
+                    _logger.LogInformation("Variation completed successfully.");
                 }
             }
         }

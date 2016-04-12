@@ -1,12 +1,13 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Authorization;
-using Microsoft.AspNet.Hosting;
-using Microsoft.AspNet.Identity;
-using Microsoft.AspNet.Mvc;
-using Microsoft.AspNet.Mvc.Rendering;
-using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Authentication;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.DependencyInjection;
 using MusicStore.Models;
 
 namespace MusicStore.Controllers
@@ -14,12 +15,17 @@ namespace MusicStore.Controllers
     [Authorize]
     public class AccountController : Controller
     {
+        public AccountController(
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager)
+        {
+            UserManager = userManager;
+            SignInManager = signInManager;
+        }
 
-        [FromServices]
-        public UserManager<ApplicationUser> UserManager { get; set; }
+        public UserManager<ApplicationUser> UserManager { get; }
 
-        [FromServices]
-        public SignInManager<ApplicationUser> SignInManager { get; set; }
+        public SignInManager<ApplicationUser> SignInManager { get; }
 
         //
         // GET: /Account/Login
@@ -378,7 +384,7 @@ namespace MusicStore.Controllers
                 ViewBag.ReturnUrl = returnUrl;
                 ViewBag.LoginProvider = loginInfo.LoginProvider;
                 // REVIEW: handle case where email not in claims?
-                var email = loginInfo.ExternalPrincipal.FindFirstValue(ClaimTypes.Email);
+                var email = loginInfo.Principal.FindFirstValue(ClaimTypes.Email);
                 return View("ExternalLoginConfirmation", new ExternalLoginConfirmationViewModel { Email = email });
             }
         }
@@ -390,7 +396,7 @@ namespace MusicStore.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> ExternalLoginConfirmation(ExternalLoginConfirmationViewModel model, string returnUrl = null)
         {
-            if (User.IsSignedIn())
+            if (SignInManager.IsSignedIn(User))
             {
                 return RedirectToAction("Index", "Manage");
             }
@@ -408,7 +414,7 @@ namespace MusicStore.Controllers
 
 #if TESTING
                 //Just for automated testing adding a claim named 'ManageStore' - Not required for production
-                var manageClaim = info.ExternalPrincipal.Claims.Where(c => c.Type == "ManageStore").FirstOrDefault();
+                var manageClaim = info.Principal.Claims.Where(c => c.Type == "ManageStore").FirstOrDefault();
                 if (manageClaim != null)
                 {
                     await UserManager.AddClaimAsync(user, manageClaim);
@@ -447,7 +453,10 @@ namespace MusicStore.Controllers
             var appEnv = HttpContext.RequestServices.GetService<IHostingEnvironment>();
             if (appEnv.EnvironmentName.StartsWith("OpenIdConnect"))
             {
-                await HttpContext.Authentication.SignOutAsync("OpenIdConnect");
+                return new SignOutResult("OpenIdConnect", new AuthenticationProperties
+                {
+                    RedirectUri = Url.Action("Index", "Home")
+                });
             }
 
             return RedirectToAction("Index", "Home");
@@ -471,9 +480,9 @@ namespace MusicStore.Controllers
             }
         }
 
-        private async Task<ApplicationUser> GetCurrentUserAsync()
+        private Task<ApplicationUser> GetCurrentUserAsync()
         {
-            return await UserManager.FindByIdAsync(HttpContext.User.GetUserId());
+            return UserManager.GetUserAsync(HttpContext.User);
         }
 
         private ActionResult RedirectToLocal(string returnUrl)

@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Mvc;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.Caching.Memory;
-using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using MusicStore.Models;
 using Xunit;
 
@@ -17,11 +17,11 @@ namespace MusicStore.Controllers
 
         public HomeControllerTest()
         {
+            var efServiceProvider = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+
             var services = new ServiceCollection();
 
-            services.AddEntityFramework()
-                      .AddInMemoryDatabase()
-                      .AddDbContext<MusicStoreContext>(options => options.UseInMemoryDatabase());
+            services.AddDbContext<MusicStoreContext>(b => b.UseInMemoryDatabase().UseInternalServiceProvider(efServiceProvider));
 
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -46,16 +46,13 @@ namespace MusicStore.Controllers
         public async Task Index_GetsSixTopAlbums()
         {
             // Arrange
-            var controller = new HomeController()
-            {
-                DbContext = _serviceProvider.GetRequiredService<MusicStoreContext>(),
-                Cache = _serviceProvider.GetRequiredService<IMemoryCache>(),
-            };
-
-            PopulateData(controller.DbContext);
+            var dbContext = _serviceProvider.GetRequiredService<MusicStoreContext>();
+            var cache = _serviceProvider.GetRequiredService<IMemoryCache>();
+            var controller = new HomeController();
+            PopulateData(dbContext);
 
             // Action
-            var result = await controller.Index();
+            var result = await controller.Index(dbContext, cache);
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);

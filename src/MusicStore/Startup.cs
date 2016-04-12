@@ -1,15 +1,10 @@
-using Microsoft.AspNet.Authorization;
-using Microsoft.AspNet.Builder;
-using Microsoft.AspNet.Cors.Core;
-using Microsoft.AspNet.Diagnostics.Entity;
-using Microsoft.AspNet.Http;
-using Microsoft.AspNet.Identity.EntityFramework;
-using Microsoft.Data.Entity;
-using Microsoft.Dnx.Runtime;
-using Microsoft.Framework.Caching.Memory;
-using Microsoft.Framework.Configuration;
-using Microsoft.Framework.DependencyInjection;
-using Microsoft.Framework.Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.PlatformAbstractions;
 using MusicStore.Components;
 using MusicStore.Models;
 
@@ -47,29 +42,25 @@ namespace MusicStore
             // Add EF services to the services container
             if (useInMemoryStore)
             {
-                services.AddEntityFramework()
-                        .AddInMemoryDatabase()
-                        .AddDbContext<MusicStoreContext>(options =>
+                services.AddDbContext<MusicStoreContext>(options =>
                             options.UseInMemoryDatabase());
             }
             else
             {
-                services.AddEntityFramework()
-                        .AddSqlServer()
-                        .AddDbContext<MusicStoreContext>(options =>
-                            options.UseSqlServer(Configuration["Data:DefaultConnection:ConnectionString"]));
+                services.AddDbContext<MusicStoreContext>(options =>
+                            options.UseSqlServer(Configuration[StoreConfig.ConnectionStringKey.Replace("__",":")]));
             }
 
             // Add Identity services to the services container
             services.AddIdentity<ApplicationUser, IdentityRole>(options =>
                     {
-                        options.Cookies.ApplicationCookie.AccessDeniedPath = new PathString("/Home/AccessDenied");
+                        options.Cookies.ApplicationCookie.AccessDeniedPath = "/Home/AccessDenied";
                     })
                     .AddEntityFrameworkStores<MusicStoreContext>()
                     .AddDefaultTokenProviders();
 
 
-            services.Configure<CorsOptions>(options =>
+            services.AddCors(options =>
             {
                 options.AddPolicy("CorsPolicy", builder =>
                 {
@@ -80,11 +71,11 @@ namespace MusicStore
             // Add MVC services to the services container
             services.AddMvc();
 
-            //Add InMemoryCache
-            services.AddSingleton<IMemoryCache, MemoryCache>();
+            // Add memory cache services
+            services.AddMemoryCache();
+            services.AddDistributedMemoryCache();
 
             // Add session related services.
-            services.AddCaching();
             services.AddSession();
 
             // Add the system clock service
@@ -94,11 +85,14 @@ namespace MusicStore
             services.AddAuthorization(options =>
             {
                 options.AddPolicy(
-                    "ManageStore", new AuthorizationPolicyBuilder().RequireClaim("ManageStore", "Allowed").Build());
+                    "ManageStore",
+                    authBuilder => {
+                        authBuilder.RequireClaim("ManageStore", "Allowed");
+                    });
             });
         }
 
-        //This method is invoked when ASPNET_ENV is 'Development' or is not defined
+        //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Development' or is not defined
         //The allowed values are Development,Staging and Production
         public void ConfigureDevelopment(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
@@ -111,7 +105,7 @@ namespace MusicStore
             // During development use the ErrorPage middleware to display error information in the browser
             app.UseDeveloperExceptionPage();
 
-            app.UseDatabaseErrorPage(DatabaseErrorPageOptions.ShowAll);
+            app.UseDatabaseErrorPage();
 
             // Add the runtime information page that can be used by developers
             // to see what packages are used by the application
@@ -121,7 +115,7 @@ namespace MusicStore
             Configure(app);
         }
 
-        //This method is invoked when ASPNET_ENV is 'Staging'
+        //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Staging'
         //The allowed values are Development,Staging and Production
         public void ConfigureStaging(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
@@ -135,7 +129,7 @@ namespace MusicStore
             Configure(app);
         }
 
-        //This method is invoked when ASPNET_ENV is 'Production'
+        //This method is invoked when ASPNETCORE_ENVIRONMENT is 'Production'
         //The allowed values are Development,Staging and Production
         public void ConfigureProduction(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
@@ -160,22 +154,22 @@ namespace MusicStore
             // Add cookie-based authentication to the request pipeline
             app.UseIdentity();
 
-            app.UseFacebookAuthentication(options =>
+            app.UseFacebookAuthentication(new FacebookOptions
             {
-                options.AppId = "550624398330273";
-                options.AppSecret = "10e56a291d6b618da61b1e0dae3a8954";
+                AppId = "550624398330273",
+                AppSecret = "10e56a291d6b618da61b1e0dae3a8954"
             });
 
-            app.UseGoogleAuthentication(options =>
+            app.UseGoogleAuthentication(new GoogleOptions
             {
-                options.ClientId = "995291875932-0rt7417v5baevqrno24kv332b7d6d30a.apps.googleusercontent.com";
-                options.ClientSecret = "J_AT57H5KH_ItmMdu0r6PfXm";
+                ClientId = "995291875932-0rt7417v5baevqrno24kv332b7d6d30a.apps.googleusercontent.com",
+                ClientSecret = "J_AT57H5KH_ItmMdu0r6PfXm"
             });
 
-            app.UseTwitterAuthentication(options =>
+            app.UseTwitterAuthentication(new TwitterOptions
             {
-                options.ConsumerKey = "lDSPIu480ocnXYZ9DumGCDw37";
-                options.ConsumerSecret = "fpo0oWRNc3vsZKlZSq1PyOSoeXlJd7NnG4Rfc94xbFXsdcc3nH";
+                ConsumerKey = "lDSPIu480ocnXYZ9DumGCDw37",
+                ConsumerSecret = "fpo0oWRNc3vsZKlZSq1PyOSoeXlJd7NnG4Rfc94xbFXsdcc3nH"
             });
 
             // The MicrosoftAccount service has restrictions that prevent the use of
@@ -194,11 +188,11 @@ namespace MusicStore
 
             // The sample app can then be run via:
             // dnx . web
-            app.UseMicrosoftAccountAuthentication(options =>
+            app.UseMicrosoftAccountAuthentication(new MicrosoftAccountOptions
             {
-                options.DisplayName = "MicrosoftAccount - Requires project changes";
-                options.ClientId = "000000004012C08A";
-                options.ClientSecret = "GaMQ2hCnqAC6EcDLnXsAeBVIJOLmeutL";
+                DisplayName = "MicrosoftAccount - Requires project changes",
+                ClientId = "000000004012C08A",
+                ClientSecret = "GaMQ2hCnqAC6EcDLnXsAeBVIJOLmeutL"
             });
 
             // Add MVC to the request pipeline

@@ -1,26 +1,28 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Cors.Core;
-using Microsoft.AspNet.Mvc;
-using Microsoft.AspNet.Mvc.Rendering;
-using Microsoft.Data.Entity;
-using Microsoft.Framework.Caching.Memory;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using MusicStore.Models;
 using MusicStore.ViewModels;
 
 namespace MusicStore.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Microsoft.AspNet.Authorization.Authorize("ManageStore")]
+    [Authorize("ManageStore")]
     public class StoreManagerController : Controller
     {
-        [FromServices]
-        public MusicStoreContext DbContext { get; set; }
+        public StoreManagerController(MusicStoreContext dbContext)
+        {
+            DbContext = dbContext;
+        }
 
-        [FromServices]
-        public IMemoryCache Cache { get; set; }
+        public MusicStoreContext DbContext { get; }
 
         //
         // GET: /StoreManager/
@@ -36,12 +38,14 @@ namespace MusicStore.Areas.Admin.Controllers
 
         //
         // GET: /StoreManager/Details/5
-        public async Task<IActionResult> Details(int id)
+        public async Task<IActionResult> Details(
+            [FromServices] IMemoryCache cache,
+            int id)
         {
             var cacheKey = GetCacheKey(id);
 
             Album album;
-            if(!Cache.TryGetValue(cacheKey, out album))
+            if (!cache.TryGetValue(cacheKey, out album))
             {
                 album = await DbContext.Albums
                         .Where(a => a.AlbumId == id)
@@ -52,7 +56,7 @@ namespace MusicStore.Areas.Admin.Controllers
                 if (album != null)
                 {
                     //Remove it from cache if not retrieved in last 10 minutes.
-                    Cache.Set(
+                    cache.Set(
                         cacheKey,
                         album,
                         new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(10)));
@@ -61,8 +65,8 @@ namespace MusicStore.Areas.Admin.Controllers
 
             if (album == null)
             {
-                Cache.Remove(cacheKey);
-                return HttpNotFound();
+                cache.Remove(cacheKey);
+                return NotFound();
             }
 
             return View(album);
@@ -80,7 +84,10 @@ namespace MusicStore.Areas.Admin.Controllers
         // POST: /StoreManager/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Album album, CancellationToken requestAborted)
+        public async Task<IActionResult> Create(
+            Album album,
+            [FromServices] IMemoryCache cache,
+            CancellationToken requestAborted)
         {
             if (ModelState.IsValid)
             {
@@ -93,7 +100,7 @@ namespace MusicStore.Areas.Admin.Controllers
                     Url = Url.Action("Details", "Store", new { id = album.AlbumId })
                 };
 
-                Cache.Remove("latestAlbum");
+                cache.Remove("latestAlbum");
                 return RedirectToAction("Index");
             }
 
@@ -112,7 +119,7 @@ namespace MusicStore.Areas.Admin.Controllers
 
             if (album == null)
             {
-                return HttpNotFound();
+                return NotFound();
             }
 
             ViewBag.GenreId = new SelectList(DbContext.Genres, "GenreId", "Name", album.GenreId);
@@ -124,14 +131,17 @@ namespace MusicStore.Areas.Admin.Controllers
         // POST: /StoreManager/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Album album, CancellationToken requestAborted)
+        public async Task<IActionResult> Edit(
+            [FromServices] IMemoryCache cache,
+            Album album,
+            CancellationToken requestAborted)
         {
             if (ModelState.IsValid)
             {
                 DbContext.Update(album);
                 await DbContext.SaveChangesAsync(requestAborted);
                 //Invalidate the cache entry as it is modified
-                Cache.Remove(GetCacheKey(album.AlbumId));
+                cache.Remove(GetCacheKey(album.AlbumId));
                 return RedirectToAction("Index");
             }
 
@@ -147,7 +157,7 @@ namespace MusicStore.Areas.Admin.Controllers
             var album = await DbContext.Albums.Where(a => a.AlbumId == id).FirstOrDefaultAsync();
             if (album == null)
             {
-                return HttpNotFound();
+                return NotFound();
             }
 
             return View(album);
@@ -156,18 +166,21 @@ namespace MusicStore.Areas.Admin.Controllers
         //
         // POST: /StoreManager/RemoveAlbum/5
         [HttpPost, ActionName("RemoveAlbum")]
-        public async Task<IActionResult> RemoveAlbumConfirmed(int id, CancellationToken requestAborted)
+        public async Task<IActionResult> RemoveAlbumConfirmed(
+            [FromServices] IMemoryCache cache,
+            int id,
+            CancellationToken requestAborted)
         {
             var album = await DbContext.Albums.Where(a => a.AlbumId == id).FirstOrDefaultAsync();
             if (album == null)
             {
-                return HttpNotFound();
+                return NotFound();
             }
 
             DbContext.Albums.Remove(album);
             await DbContext.SaveChangesAsync(requestAborted);
             //Remove the cache entry as it is removed
-            Cache.Remove(GetCacheKey(id));
+            cache.Remove(GetCacheKey(id));
 
             return RedirectToAction("Index");
         }
@@ -190,7 +203,7 @@ namespace MusicStore.Areas.Admin.Controllers
 
             if (album == null)
             {
-                return HttpNotFound();
+                return NotFound();
             }
 
             return Content(album.AlbumId.ToString());

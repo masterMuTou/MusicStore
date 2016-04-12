@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNet.Mvc;
-using Microsoft.AspNet.Authorization;
-using Microsoft.Data.Entity;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using MusicStore.Models;
 
 namespace MusicStore.Controllers
@@ -14,9 +14,6 @@ namespace MusicStore.Controllers
     public class CheckoutController : Controller
     {
         private const string PromoCode = "FREE";
-
-        [FromServices]
-        public MusicStoreContext DbContext { get; set; }
 
         //
         // GET: /Checkout/
@@ -30,7 +27,10 @@ namespace MusicStore.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddressAndPayment([FromForm] Order order, CancellationToken requestAborted)
+        public async Task<IActionResult> AddressAndPayment(
+            [FromServices] MusicStoreContext dbContext,
+            [FromForm] Order order,
+            CancellationToken requestAborted)
         {
             if (!ModelState.IsValid)
             {
@@ -48,18 +48,18 @@ namespace MusicStore.Controllers
                 }
                 else
                 {
-                    order.Username = HttpContext.User.GetUserName();
+                    order.Username = HttpContext.User.Identity.Name;
                     order.OrderDate = DateTime.Now;
 
                     //Add the Order
-                    DbContext.Orders.Add(order);
+                    dbContext.Orders.Add(order);
 
                     //Process the order
-                    var cart = ShoppingCart.GetCart(DbContext, HttpContext);
+                    var cart = ShoppingCart.GetCart(dbContext, HttpContext);
                     await cart.CreateOrder(order);
 
                     // Save all changes
-                    await DbContext.SaveChangesAsync(requestAborted);
+                    await dbContext.SaveChangesAsync(requestAborted);
 
                     return RedirectToAction("Complete", new { id = order.OrderId });
                 }
@@ -74,12 +74,14 @@ namespace MusicStore.Controllers
         //
         // GET: /Checkout/Complete
 
-        public async Task<IActionResult> Complete(int id)
+        public async Task<IActionResult> Complete(
+            [FromServices] MusicStoreContext dbContext,
+            int id)
         {
             // Validate customer owns this order
-            bool isValid = await DbContext.Orders.AnyAsync(
+            bool isValid = await dbContext.Orders.AnyAsync(
                 o => o.OrderId == id &&
-                o.Username == HttpContext.User.GetUserName());
+                o.Username == HttpContext.User.Identity.Name);
 
             if (isValid)
             {
