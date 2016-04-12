@@ -12,6 +12,7 @@
       "TESTING"
     ],
 <<<<<<< HEAD
+<<<<<<< HEAD
     "description": "Music store application on ASP.NET 5",
     "version": "1.0.0-*",
     "compilationOptions": {
@@ -67,6 +68,8 @@
             }
         }
 =======
+=======
+>>>>>>> aspnet/dev
     "preserveCompilationContext": true
   },
   "compile": [
@@ -115,6 +118,9 @@
         "dnxcore50",
         "portable-net451+win8"
       ]
+<<<<<<< HEAD
+>>>>>>> aspnet/dev
+=======
 >>>>>>> aspnet/dev
     }
   }

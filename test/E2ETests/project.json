@@ -1,5 +1,6 @@
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "compilationOptions": {
         "warningsAsErrors": true
     },
@@ -24,6 +25,8 @@
             }
         }
 =======
+=======
+>>>>>>> aspnet/dev
   "compilationOptions": {
     "warningsAsErrors": true
   },
@@ -52,6 +55,9 @@
         "dnxcore50",
         "portable-net451+win8"
       ]
+<<<<<<< HEAD
+>>>>>>> aspnet/dev
+=======
 >>>>>>> aspnet/dev
     }
   },

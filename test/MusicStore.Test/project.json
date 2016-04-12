@@ -39,5 +39,8 @@
     "net451": {}
   },
   "testRunner": "xunit"
+<<<<<<< HEAD
+>>>>>>> aspnet/dev
+=======
 >>>>>>> aspnet/dev
 }
